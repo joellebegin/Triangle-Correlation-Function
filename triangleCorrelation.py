@@ -1,111 +1,96 @@
-import numpy as np
-from scipy.special import j0
-
-def k_vects(n):
-    '''Constructs array of all possible k_vectors for an n by n grid, excluding 0 vector. 
-    Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]. The array is sorted
-    in terms of increasing norm, and also returns the corresponding norms.'''
-    delta_k = 2*np.pi/L #scaling factor for k vectors
+def k_vects():
+    x,y = np.indices((n,n))
+    delta_k = 2*np.pi/L
     
-    #kx, ky contain horizontal and vertical coordinates of all vectors in a box with origin at n//2
-    #and of dimensions n by n
-    kx,ky = np.indices((n,n)) -n//2 
-    k = np.array(list(zip(kx.flatten(), ky.flatten())))
-    norms = np.array([np.linalg.norm(inds) for inds in k])
-    ind = np.argsort(norms)
-    norms_sorted = norms[ind]*delta_k
-    k_sorted = k[ind]
+    #start at one in order to not include zero vector
+    k = np.vstack((x.flatten(),y.flatten())).transpose()[1:]
+    norms_k= np.linalg.norm(ks, axis = 1)
+    ind = np.argsort(norms_k) #sorting
+    
+    return k[ind], norms_k[ind]*delta_k
 
-    return k_sorted[1:], norms_sorted[1:] 
 
-def k_condition(r):
-    '''returns the k vectors that satisfy norm(k) <= pi/r'''
-    norm_indices = []
-    for i in range(len(k_norms)): #maybe use np.argwhere()? prob more efficient, idk if neglibily so. More elegant for sure though
-        if k_norms[i] <= np.pi/r:
-            norm_indices.append(i)
-    return k_vals[norm_indices]
-
-def in_range(vector):
-    '''makes sure that the vector k + q is not out of range of the box'''
-    norm_vect = np.linalg.norm(vector)
-    if norm_vect >= 0.5*n - 0.5:
-        inrange = False
-    else:
-        inrange = True
-    return inrange
-
-def translation(vector):
-    '''goes back to the np coordinate system where [0,0] is first element of array.
-    We need to do this because the field data is stored in this way.'''
-
-    '''I don't think this is actually necessary... why is there a problem with having
-    coordinate system centered at the topmost pixel of the grid? Can still sum vectors'''
-    return vector + n//2
-
-def bispec(k, q, sum_kq,r):
-    '''computes the bispectrum for the three vectors k,q, and (k + q), and returns
-    the product of the bispectrum and window function'''
+def bispectrum(k,q,s):
     sq3 = np.sqrt(3)
-    #p vector as defined in SOURCE
-    px = k[0] + 0.5*q[0] + 0.5*sq3*q[1]
-    py = k[0] - 0.5*sq3*q[0] + 0.5*q[1]
-    norm_p = np.linalg.norm((px,py))
+    kx,ky = k[0],k[1]
+    qx,qy = q[:,0], q[:,1]
+    sx,sy = s[:,0], s[:,1]
 
-    #going back to numpy "coordinate system"
-    k_np, q_np, sum_np = translation(k), translation(q), translation(sum_kq)
+    b = field[kx,ky]*field[qx,qy]*np.conj(field[sx,sy])
+    
+    px = kx + 0.5*qy + 0.5*sq3*qy
+    py = ky - 0.5*sq3*qx + 0.5*qy
+    p_vects = np.vstack((px,py))
+    norm_p = np.linalg.norm(p_vects, axis = 0)
+    
+    return b,norm_p
 
-    sum_kq_ind = np.round(sum_np) #what pixel k+q falls into
+def bispec_k(i):
+    k_i = k_vals[i]
+    q_vects = k_vals[i+1:]
+    sum_kq = k_i + q_vects
     
-    b = epsilon_k[k_np[0], k_np[1]]*epsilon_k[q_np[0], q_np[1]]*np.conj(epsilon_k[sum_kq_ind[0], sum_kq_ind[1]])
-    window = j0(norm_p*r)
+    #the elements in (k + q) that are out of range
+    indices = np.unique(np.argwhere(sum_kq >=n)[:,0])
     
-    return b*window
-    
-def sum_q(k_array, i, r):
-    '''for a given k vector, this sums over all the possible q. Essentially "inner" sum in the 2D sum.
-    -k_array: array of vectors satisfying norm(k) <= pi/r
-    -i: index in k_array of the given k we are fixing
-    -r: correlation scale for which we are computing s(r)'''
-
-    summond = 0
-    k_i = k_array[i]
-    for q in k_array[i+1:]: #we slice k_array in this way to avoid duplicates
-        sum_kq = k_i + q
-        if in_range(sum_kq): # Makes sure k+q is not outside box
-            summond += bispec(k_i, q, sum_kq,r) #computing bispectrum + window
-        else:
-            summond += 0
-    return summond
-            
-def s(r):
-    '''computes s(r) for a given r vector. s(r) as defined in INCLUDE SOURCE'''
-    
-    k_available = k_condition(r) # k_available = { k | norm(k) <= pi/r }
-    sum_r = 0
-    for i in range(len(k_available)): 
-        sum_r += sum_q(k_available, i, r)
-    sum_r *= (r/L)**(3)
-    return sum_r
-
-def tcf(field, length, NBINS = 20):
-    '''computes the TCF for a given field.  
-    -field: the field in question, in fourier space.
-    -length: length of the box in real space units (eg Mpc)
-    -NBINS: determines the number of correlation scales (r) that the TCF will be computed for'''
-
-    #declaring some global constants 
-    global epsilon_k, k_vals, k_norms, n, L
-    epsilon_k = field/np.abs(field) #phase factor of field
-    L = length
-    n = field.shape[0]
-    k_vals, k_norms = k_vects(n) #all possible k vectors and their norm, sorted
-    
-    #list of correlation scales we want to probe
-    r = np.linspace(0.5, 50, NBINS)
-    triangle_corr = []
-    
-    for scale in r: 
-        triangle_corr.append(s(scale))
+    if len(indices) == len(sum_kq):
+        return 
+    else: 
+        s_inrange = np.delete(sum_kq, indices,0)
+        q_inrange = np.delete(q_vects, indices,0)
         
-    return r,triangle_corr
+        spec,p = bispectrum(k_i, q_inrange, s_inrange)
+        
+        norm_k = k_norms[i]
+        norms_q = np.delete(k_norms[i+1:], indices)
+        norms_kq = np.vstack((norm_k*np.ones(len(norms_q)),norms_q)).transpose()
+        
+        return spec, norms_kq, p
+
+def compute_bispectrum(): 
+    #super inelegant, better way?
+    bispec = np.array([])
+    norms = np.array([[0,0]])
+    p_bispec = np.array([])
+    
+    for i in range(len(k_vals) -1):
+        data = bispec_k(i)
+        if data is not None:
+            bispec = np.append(bispec, data[0])
+            norms = np.append(norms, data[1], axis = 0)
+            p_bispec = np.append(p_bispec, data[2])        
+    return bispec, norms[1:], p_bispec
+    
+    
+def bin_r(r_i, spec, norms, p):
+    indk = np.argwhere(norms[:,0] <= np.pi/r_i).flatten()
+    indq = np.argwhere(norms[:,1] <= np.pi/r_i).flatten()
+    ind_kq = np.intersect1d(indk, indq) #indices in norms where k&&q <= pi/r
+    
+    spec_good = spec[ind_kq]
+    p_good = p[ind_kq]
+    
+    window = j0(r_i*p_good)
+    sum_r = np.sum(spec_good*window)
+    return ((r_i/L)**3)*sum_r
+
+def compute_tcf(r, bispectra, norms_kq, p):
+    t = []
+    for scale in r: 
+        t.append(bin_r(scale, bispectra, norms_kq, p))
+    return t
+
+    
+def tcf(field, length):
+    global k_vals, k_norms, n, L
+    n = field.shape[0]
+    L = length
+    k_vals, k_norms = k_vects()
+    
+    bispectra, norms_kq, p = compute_bispectrum()
+    
+    r = np.linspace(0.5, 50, 500)
+    triangle_corr = compute_tcf(r, bispectra, norms_kq, p)
+    
+    return r, triangle_corr
+    
