@@ -1,3 +1,7 @@
+import numpy as np
+from scipy.special import j0
+from tqdm import tqdm
+
 def k_vects(n):
     '''Constructs array of all possible k_vectors for an n by n grid, excluding 
     0 vector. Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]'''
@@ -70,7 +74,7 @@ def compute_bispectrum():
     p_bispec = np.array([])
     
     #iterating through every vector
-    for i in range(len(k_vals) -1):
+    for i in tqdm(range(len(k_vals) -1), desc='computing bispectra'):
         data = bispec_k(i)
 
         if data is not None: 
@@ -98,12 +102,12 @@ def sr(r_i, spec, norms, p):
 def compute_tcf(r, bispectra, norms_kq, p):
     '''iterates through the correlation scales'''
     t = []
-    for scale in r: 
+    for scale in tqdm(r, desc='computing s(r)'): 
         t.append(sr(scale, bispectra, norms_kq, p))
     return np.array(t)
 
     
-def tcf(field, length):
+def tcf(field, length, rbins):
     '''computes the triangle correlation function for given field
     -field: field, already in fourier space
     -length: realspace length of box(survey size)'''
@@ -115,8 +119,11 @@ def tcf(field, length):
     
     bispectra, norms_kq, p = compute_bispectrum()
     
-    r = np.linspace(0.5, 50, 500)
+    r = np.linspace(0.5, 50, rbins)
     triangle_corr = compute_tcf(r, bispectra, norms_kq, p)
     
     return r, triangle_corr
-    
+
+n = 50
+field = np.random.normal(size = (n,n))
+stuff = tcf(field, 400, 40)    
