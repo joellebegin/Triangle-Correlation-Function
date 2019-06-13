@@ -1,5 +1,6 @@
 import numpy as np 
 from scipy.special import j0
+from tqdm import tqdm
 
 def k_vects():
     '''Constructs array of all possible k_vectors for an n by n grid, excluding 
@@ -68,19 +69,19 @@ def compute_bispectrum():
     I.e: bispec[i] = B(k,q),where norm(k) = norms[i][0] and norm(q) = norms[i][1]'''
     
     #initializing arrays
-    bispec = np.array([])
+    bispec = []
     norms = np.array([[0,0]])
-    p_bispec = np.array([])
+    p_bispec = []
     
     #iterating through every vector
-    for i in range(len(k_vals) -1):
+    for i in tqdm(range(len(k_vals) -1), desc= 'Computing bispectra'):
         data = bispec_k(i)
 
         if data is not None: 
-            bispec = np.append(bispec, data[0])
-            norms = np.append(norms, data[1], axis = 0)
-            p_bispec = np.append(p_bispec, data[2])        
-    return bispec, norms[1:], p_bispec
+            bispec.append(data[0])
+            norms = np.vstack((norms, data[1]))
+            p_bispec.append(data[2])        
+    return np.hstack(bispec), norms[1:], np.hstack(p_bispec)
     
     
 def sr(r_i, spec, norms, p):
@@ -101,7 +102,7 @@ def sr(r_i, spec, norms, p):
 def compute_tcf(r, bispectra, norms_kq, p):
     '''iterates through the correlation scales'''
     t = []
-    for scale in r: 
+    for scale in tqdm(r, desc='Computing s(r)': 
         t.append(sr(scale, bispectra, norms_kq, p))
     return np.array(t)
 
