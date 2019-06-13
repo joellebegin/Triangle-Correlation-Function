@@ -1,4 +1,7 @@
-def k_vects(n):
+import numpy as np 
+from scipy.special import j0
+
+def k_vects():
     '''Constructs array of all possible k_vectors for an n by n grid, excluding 
     0 vector. Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]'''
     x,y = np.indices((n,n))
@@ -21,7 +24,7 @@ def bispectrum(k,q,s):
     sx,sy = s[:,0], s[:,1]
 
     #evaluating bispectrum
-    b = field[kx,ky]*field[qx,qy]*np.conj(field[sx,sy])
+    b = epsilon_k[kx,ky]*epsilon_k[qx,qy]*np.conj(epsilon_k[sx,sy])
     
     #constructing p vector and taking norm
     px = kx + 0.5*qy + 0.5*sq3*qy
@@ -108,10 +111,11 @@ def tcf(field, length):
     -field: field, already in fourier space
     -length: realspace length of box(survey size)'''
 
-    global epsilon_k, k_vals, k_norms, L
+    global epsilon_k, k_vals, k_norms, L, n
     epsilon_k = field/np.abs(field)
+    n = field.shape[0]
     L = length
-    k_vals, k_norms = k_vects(field.shape[0])
+    k_vals, k_norms = k_vects()
     
     bispectra, norms_kq, p = compute_bispectrum()
     
