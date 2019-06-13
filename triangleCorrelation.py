@@ -1,8 +1,8 @@
-import numpy as np
+import numpy as np 
 from scipy.special import j0
 from tqdm import tqdm
 
-def k_vects(n):
+def k_vects():
     '''Constructs array of all possible k_vectors for an n by n grid, excluding 
     0 vector. Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]'''
     x,y = np.indices((n,n))
@@ -25,7 +25,7 @@ def bispectrum(k,q,s):
     sx,sy = s[:,0], s[:,1]
 
     #evaluating bispectrum
-    b = field[kx,ky]*field[qx,qy]*np.conj(field[sx,sy])
+    b = epsilon_k[kx,ky]*epsilon_k[qx,qy]*np.conj(epsilon_k[sx,sy])
     
     #constructing p vector and taking norm
     px = kx + 0.5*qy + 0.5*sq3*qy
@@ -69,19 +69,19 @@ def compute_bispectrum():
     I.e: bispec[i] = B(k,q),where norm(k) = norms[i][0] and norm(q) = norms[i][1]'''
     
     #initializing arrays
-    bispec = np.array([])
+    bispec = []
     norms = np.array([[0,0]])
-    p_bispec = np.array([])
+    p_bispec = []
     
     #iterating through every vector
-    for i in tqdm(range(len(k_vals) -1), desc='computing bispectra'):
+    for i in tqdm(range(len(k_vals) -1), desc= 'Computing bispectra'):
         data = bispec_k(i)
 
         if data is not None: 
-            bispec = np.append(bispec, data[0])
-            norms = np.append(norms, data[1], axis = 0)
-            p_bispec = np.append(p_bispec, data[2])        
-    return bispec, norms[1:], p_bispec
+            bispec.append(data[0])
+            norms = np.vstack((norms, data[1]))
+            p_bispec.append(data[2])        
+    return np.hstack(bispec), norms[1:], np.hstack(p_bispec)
     
     
 def sr(r_i, spec, norms, p):
@@ -102,28 +102,30 @@ def sr(r_i, spec, norms, p):
 def compute_tcf(r, bispectra, norms_kq, p):
     '''iterates through the correlation scales'''
     t = []
-    for scale in tqdm(r, desc='computing s(r)'): 
+    for scale in tqdm(r, desc='Computing s(r)'): 
         t.append(sr(scale, bispectra, norms_kq, p))
     return np.array(t)
 
     
-def tcf(field, length, rbins):
+def tcf(field, length):
     '''computes the triangle correlation function for given field
     -field: field, already in fourier space
     -length: realspace length of box(survey size)'''
 
-    global epsilon_k, k_vals, k_norms, L
+    global epsilon_k, k_vals, k_norms, L, n
     epsilon_k = field/np.abs(field)
+    n = field.shape[0]
     L = length
-    k_vals, k_norms = k_vects(field.shape[0])
+    k_vals, k_norms = k_vects()
     
     bispectra, norms_kq, p = compute_bispectrum()
     
-    r = np.linspace(0.5, 50, rbins)
+    r = np.linspace(0.5, 50, 40)
     triangle_corr = compute_tcf(r, bispectra, norms_kq, p)
     
     return r, triangle_corr
 
+
 n = 50
 field = np.random.normal(size = (n,n))
-stuff = tcf(field, 400, 40)    
+stuff = tcf(field, 400)    
