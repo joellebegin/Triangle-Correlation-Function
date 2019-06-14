@@ -2,6 +2,8 @@ import numpy as np
 from scipy.special import j0
 from tqdm import tqdm
 from time import time
+import gc
+import sys
 
 def k_vects():
     '''Constructs array of all possible k_vectors for an n by n grid, excluding 
@@ -124,15 +126,18 @@ def tcf(field, length = 400, rbins = 200):
     k_vals, k_norms = k_vects()
     
     bispectra, norms_k, norms_q, p = compute_bispectrum()
-    #stuff = compute_bispectrum()
+    # stuff = compute_bispectrum()
     #return stuff 
-    #r = np.linspace(0.5, 50, rbins)
-    #triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
+    print(sys.getsizeof(bispectra)/(10**9), sys.getsizeof(norms_k)/(10**9), 
+        sys.getsizeof(norms_q)/(10**9), sys.getsizeof(p)/(10**9)  )
+
+    # r = np.linspace(0.5, 50, rbins)
+    # triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
     
-    #return r, triangle_corr
+    # return r, triangle_corr
     return bispectra
 
-n = 200
+n = 150
 
 field = np.random.normal(size = (n,n))
 
