@@ -1,4 +1,8 @@
-def k_vects(n):
+import numpy as np 
+from scipy.special import j0
+from tqdm import tqdm
+
+def k_vects():
     '''Constructs array of all possible k_vectors for an n by n grid, excluding 
     0 vector. Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]'''
     x,y = np.indices((n,n))
@@ -21,7 +25,7 @@ def bispectrum(k,q,s):
     sx,sy = s[:,0], s[:,1]
 
     #evaluating bispectrum
-    b = field[kx,ky]*field[qx,qy]*np.conj(field[sx,sy])
+    b = epsilon_k[kx,ky]*epsilon_k[qx,qy]*np.conj(epsilon_k[sx,sy])
     
     #constructing p vector and taking norm
     px = kx + 0.5*qy + 0.5*sq3*qy
@@ -51,11 +55,13 @@ def bispec_k(i):
         
         spec,p = bispectrum(k_i, q_inrange, s_inrange)
         
-        norm_k = k_norms[i]
-        norms_q = np.delete(k_norms[i+1:], indices)
-        norms_kq = np.vstack((norm_k*np.ones(len(norms_q)),norms_q)).transpose()
         
-        return spec, norms_kq, p
+        norms_q = np.delete(k_norms[i+1:], indices)
+        norms_k = k_norms[i]*np.ones(len(norms_q))
+        
+        #norms_kq = np.vstack((norm_k*np.ones(len(norms_q)),norms_q)).transpose()
+        
+        return spec, norms_q, norms_k, p
 
 def compute_bispectrum(): 
     '''Computes the bispectrum for every combination of two vectors in kspace,
@@ -65,29 +71,31 @@ def compute_bispectrum():
     I.e: bispec[i] = B(k,q),where norm(k) = norms[i][0] and norm(q) = norms[i][1]'''
     
     #initializing arrays
-    bispec = np.array([])
-    norms = np.array([[0,0]])
-    p_bispec = np.array([])
+    bispec = []
+    norms_k = []
+    norms_q = []
+    p_bispec = []
     
     #iterating through every vector
-    for i in range(len(k_vals) -1):
+    for i in tqdm(range(len(k_vals) -1), desc= 'Computing bispectra'):
         data = bispec_k(i)
 
         if data is not None: 
-            bispec = np.append(bispec, data[0])
-            norms = np.append(norms, data[1], axis = 0)
-            p_bispec = np.append(p_bispec, data[2])        
-    return bispec, norms[1:], p_bispec
+            bispec.append(data[0])
+            norms_q.append(data[1])
+            norms_k.append(data[2])
+            p_bispec.append(data[3])        
+   
+    return np.hstack(bispec), np.hstack(norms_k), np.hstack(norms_q), np.hstack(p_bispec)
     
     
-def sr(r_i, spec, norms, p):
+def sr(r_i, spec, n_k, n_q, p):
     '''given the value of r, determines which bispectra satisfy the pi/r cutoff.
     Computes window function for each value, sums over w*B, and multiplies by 
     prefactor.'''
-    indk = np.argwhere(norms[:,0] <= np.pi/r_i).flatten()
-    indq = np.argwhere(norms[:,1] <= np.pi/r_i).flatten()
-    ind_kq = np.intersect1d(indk, indq) #indices in norms where k&&q <= pi/r
-    
+    #indices in norms where k&&q <= pi/r
+    ind_kq = np.argwhere((n_k <= np.pi/r_i) & (n_q <= np.pi/r_i) )
+
     spec_good = spec[ind_kq]
     p_good = p[ind_kq]
     
@@ -95,28 +103,30 @@ def sr(r_i, spec, norms, p):
     sum_r = np.sum(spec_good*window)
     return ((r_i/L)**3)*sum_r
 
-def compute_tcf(r, bispectra, norms_kq, p):
+def compute_tcf(r, bispectra, n_k, n_q, p):
     '''iterates through the correlation scales'''
     t = []
-    for scale in r: 
-        t.append(sr(scale, bispectra, norms_kq, p))
+    for scale in tqdm(r, desc='Computing s(r)'): 
+        t.append(sr(scale, bispectra, n_k, n_q, p))
     return np.array(t)
 
     
-def tcf(field, length):
+def tcf(field, length = 400, rbins = 200):
     '''computes the triangle correlation function for given field
     -field: field, already in fourier space
     -length: realspace length of box(survey size)'''
 
-    global epsilon_k, k_vals, k_norms, L
+    global epsilon_k, k_vals, k_norms, L, n
     epsilon_k = field/np.abs(field)
+    n = field.shape[0]
     L = length
-    k_vals, k_norms = k_vects(field.shape[0])
+    k_vals, k_norms = k_vects()
     
-    bispectra, norms_kq, p = compute_bispectrum()
-    
-    r = np.linspace(0.5, 50, 500)
-    triangle_corr = compute_tcf(r, bispectra, norms_kq, p)
+    bispectra, norms_k, norms_q, p = compute_bispectrum()
+   
+    r = np.linspace(0.5, 50, rbins)
+    triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
     
     return r, triangle_corr
     
+
