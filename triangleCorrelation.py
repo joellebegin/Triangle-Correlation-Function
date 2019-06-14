@@ -3,12 +3,14 @@ from scipy.special import j0
 from tqdm import tqdm
 
 def k_vects():
-    '''Constructs array of all possible k_vectors for an n by n grid, excluding 
-    0 vector. Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]'''
+    '''Constructs array of all vectors for an n by n grid, excluding 
+    0 vector. 
+    
+    Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]'''
     x,y = np.indices((n,n))
     delta_k = 2*np.pi/L #scaling factor for k vector
     
-    #start at one in order to not include zero vector
+    #slice at one in order to not include zero vector
     k = np.vstack((x.flatten(),y.flatten())).transpose()[1:]
     norms_k= np.linalg.norm(k, axis = 1)
     ind = np.argsort(norms_k) #sorting
@@ -17,7 +19,10 @@ def k_vects():
 
 
 def bispectrum(k,q,s):
-    '''evaluates bispectrum and constructs p vector'''
+    '''evaluates bispectrum and constructs p vector
+    
+    Returns b, an array of bispectra for that specific k and q, and p, the
+    corresponding norm of p for the bispectra'''
     sq3 = np.sqrt(3)
     #separating components
     kx,ky = k[0],k[1]
@@ -59,8 +64,6 @@ def bispec_k(i):
         norms_q = np.delete(k_norms[i+1:], indices)
         norms_k = k_norms[i]*np.ones(len(norms_q))
         
-        #norms_kq = np.vstack((norm_k*np.ones(len(norms_q)),norms_q)).transpose()
-        
         return spec, norms_q, norms_k, p
 
 def compute_bispectrum(): 
@@ -68,15 +71,15 @@ def compute_bispectrum():
     as well as the norms norms of the two vectors for which the bispectrum was 
     evaluated, and the vector p. 
     
-    I.e: bispec[i] = B(k,q),where norm(k) = norms[i][0] and norm(q) = norms[i][1]'''
+    I.e: bispec[i] = B(k,q),where norm(k) = norms_k[i] and norm(q) = norms_q[i]'''
     
-    #initializing arrays
+    #initializing lists
     bispec = []
     norms_k = []
     norms_q = []
     p_bispec = []
     
-    #iterating through every vector
+    #iterating through every vector and filling up lists
     for i in tqdm(range(len(k_vals) -1), desc= 'Computing bispectra'):
         data = bispec_k(i)
 
@@ -90,9 +93,10 @@ def compute_bispectrum():
     
     
 def sr(r_i, spec, n_k, n_q, p):
-    '''given the value of r, determines which bispectra satisfy the pi/r cutoff.
+    '''given a value of r, determines which bispectra satisfy the pi/r cutoff.
     Computes window function for each value, sums over w*B, and multiplies by 
     prefactor.'''
+    
     #indices in norms where k&&q <= pi/r
     ind_kq = np.argwhere((n_k <= np.pi/r_i) & (n_q <= np.pi/r_i) )
 
@@ -114,13 +118,15 @@ def compute_tcf(r, bispectra, n_k, n_q, p):
 def tcf(field, length = 400, rbins = 200):
     '''computes the triangle correlation function for given field
     -field: field, already in fourier space
-    -length: realspace length of box(survey size)'''
+    -length: realspace length of box(survey size)
+    -rbins: number of r for which we want to compute s(r)'''
 
+    #declaring some global constans
     global epsilon_k, k_vals, k_norms, L, n
-    epsilon_k = field/np.abs(field)
+    epsilon_k = field/np.abs(field) #phase factor of field
     n = field.shape[0]
     L = length
-    k_vals, k_norms = k_vects()
+    k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
     
     bispectra, norms_k, norms_q, p = compute_bispectrum()
    
