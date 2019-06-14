@@ -81,10 +81,10 @@ def compute_bispectrum():
         data = bispec_k(i)
 
         if data is not None: 
-            bispec.append(data[0])
-            norms_q.append(data[1])
-            norms_k.append(data[2])
-            p_bispec.append(data[3])        
+            bispec.extend(data[0])
+            norms_q.extend(data[1])
+            norms_k.extend(data[2])
+            p_bispec.extend(data[3])        
    
     return np.hstack(bispec), np.hstack(norms_k), np.hstack(norms_q), 
         np.hstack(p_bispec)
