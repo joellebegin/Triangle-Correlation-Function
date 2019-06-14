@@ -1,6 +1,7 @@
 import numpy as np 
 from scipy.special import j0
 from tqdm import tqdm
+from time import time
 
 def k_vects():
     '''Constructs array of all possible k_vectors for an n by n grid, excluding 
@@ -55,11 +56,13 @@ def bispec_k(i):
         
         spec,p = bispectrum(k_i, q_inrange, s_inrange)
         
-        norm_k = k_norms[i]
-        norms_q = np.delete(k_norms[i+1:], indices)
-        norms_kq = np.vstack((norm_k*np.ones(len(norms_q)),norms_q)).transpose()
         
-        return spec, norms_kq, p
+        norms_q = np.delete(k_norms[i+1:], indices)
+        norms_k = k_norms[i]*np.ones(len(norms_q))
+        
+        #norms_kq = np.vstack((norm_k*np.ones(len(norms_q)),norms_q)).transpose()
+        
+        return spec, norms_q, norms_k, p
 
 def compute_bispectrum(): 
     '''Computes the bispectrum for every combination of two vectors in kspace,
@@ -70,7 +73,8 @@ def compute_bispectrum():
     
     #initializing arrays
     bispec = []
-    norms = np.array([[0,0]])
+    norms_k = []
+    norms_q = []
     p_bispec = []
     
     #iterating through every vector
@@ -79,19 +83,20 @@ def compute_bispectrum():
 
         if data is not None: 
             bispec.append(data[0])
-            norms = np.vstack((norms, data[1]))
-            p_bispec.append(data[2])        
-    return np.hstack(bispec), norms[1:], np.hstack(p_bispec)
+            norms_q.append(data[1])
+            norms_k.append(data[2])
+            p_bispec.append(data[3])        
+    #return norms_k, norms_q
+    return np.hstack(bispec), np.hstack(norms_k), np.hstack(norms_q), np.hstack(p_bispec)
     
     
-def sr(r_i, spec, norms, p):
+def sr(r_i, spec, n_k, n_q, p):
     '''given the value of r, determines which bispectra satisfy the pi/r cutoff.
     Computes window function for each value, sums over w*B, and multiplies by 
     prefactor.'''
-    indk = np.argwhere(norms[:,0] <= np.pi/r_i).flatten()
-    indq = np.argwhere(norms[:,1] <= np.pi/r_i).flatten()
-    ind_kq = np.intersect1d(indk, indq) #indices in norms where k&&q <= pi/r
-    
+    #indices in norms where k&&q <= pi/r
+    ind_kq = np.argwhere((n_k <= np.pi/r_i) & (n_q <= np.pi/r_i) )
+
     spec_good = spec[ind_kq]
     p_good = p[ind_kq]
     
@@ -99,15 +104,15 @@ def sr(r_i, spec, norms, p):
     sum_r = np.sum(spec_good*window)
     return ((r_i/L)**3)*sum_r
 
-def compute_tcf(r, bispectra, norms_kq, p):
+def compute_tcf(r, bispectra, n_k, n_q, p):
     '''iterates through the correlation scales'''
     t = []
     for scale in tqdm(r, desc='Computing s(r)'): 
-        t.append(sr(scale, bispectra, norms_kq, p))
+        t.append(sr(scale, bispectra, n_k, n_q, p))
     return np.array(t)
 
     
-def tcf(field, length):
+def tcf(field, length = 400, rbins = 200):
     '''computes the triangle correlation function for given field
     -field: field, already in fourier space
     -length: realspace length of box(survey size)'''
@@ -118,14 +123,21 @@ def tcf(field, length):
     L = length
     k_vals, k_norms = k_vects()
     
-    bispectra, norms_kq, p = compute_bispectrum()
+    bispectra, norms_k, norms_q, p = compute_bispectrum()
+    #stuff = compute_bispectrum()
+    #return stuff 
+    #r = np.linspace(0.5, 50, rbins)
+    #triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
     
-    r = np.linspace(0.5, 50, 40)
-    triangle_corr = compute_tcf(r, bispectra, norms_kq, p)
-    
-    return r, triangle_corr
+    #return r, triangle_corr
+    return bispectra
 
+n = 200
 
-n = 50
 field = np.random.normal(size = (n,n))
-stuff = tcf(field, 400)    
+
+start = time()
+stuff = tcf(field, rbins= 200)    
+end = time()
+
+print('Runtime is ', end -start)
