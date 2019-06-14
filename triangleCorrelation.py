@@ -86,8 +86,7 @@ def compute_bispectrum():
             norms_k.append(data[2])
             p_bispec.append(data[3])        
    
-    return np.hstack(bispec), np.hstack(norms_k), np.hstack(norms_q), 
-        np.hstack(p_bispec)
+    return np.hstack(bispec), np.hstack(norms_k), np.hstack(norms_q), np.hstack(p_bispec)
     
     
 def sr(r_i, spec, n_k, n_q, p):
