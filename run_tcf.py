@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 n = int(input('     number of pixels: '))
 length = None
 bins = None
+cut = None
 
 if input('     set realspace length of box? [y/n] ') == "y":
     length = int(input('                length: '))
@@ -13,20 +14,23 @@ if input('     set realspace length of box? [y/n] ') == "y":
 if input('     set number of r bins? [y/n] ') == "y":
     bins = int(input('              nbins: '))
 
+if input('     introduce foreground wedge? [y/n]: ') == 'y':
+    cut = True
+
 field = np.random.normal(size = (n,n)) + 1j*np.random.normal(size = (n,n))
 print('Beginning computation')
 
 if length is not None and bins is not None:
     start = time()
-    stuff = tcf(field, length, bins)
+    stuff = tcf(field, length, bins, cutoff = cut)
     end = time()
 elif length is None and bins is not None:
     start = time()
-    stuff = tcf(field, rbins = bins)
+    stuff = tcf(field, rbins = bins, cutoff = cut)
     end = time()
 else:
     start = time()
-    stuff = tcf(field)
+    stuff = tcf(field, cutoff= cut)
     end = time()
 
 print('         Total runtime was ', end -start, ' seconds.')
