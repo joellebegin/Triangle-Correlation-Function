@@ -2,6 +2,23 @@ import numpy as np
 from scipy.special import j0
 from tqdm import tqdm
 
+
+def remove_k(vectors):
+    theta = int(input('cutoff line inclination (in degrees):  '))
+    theta_rad = theta*(np.pi/180)
+
+    c_ind = []
+
+    vx = vectors[:,0]
+    vy =vectors[:,1]
+
+    line = vx*np.tan(theta_rad)
+    for i, point in enumerate(line):
+        if vy[i] > point:
+            c_ind.append(i)
+
+    return c_ind
+    
 def k_vects():
     '''Constructs array of all vectors for an n by n grid, excluding 
     0 vector. 
@@ -15,7 +32,16 @@ def k_vects():
     norms_k= np.linalg.norm(k, axis = 1)
     ind = np.argsort(norms_k) #sorting
     
-    return k[ind], norms_k[ind]*delta_k
+    k_sorted = k[ind]
+    norm_sorted = norms_k[ind]*delta_k
+    
+    if k_cutoff:
+        cutoff_indices = remove_k(k_sorted)
+        vectors = k_sorted[cutoff_indices]
+        norms = norm_sorted[cutoff_indices]
+        return vectors, norms
+    else:
+        return k_sorted, norm_sorted
 
 
 def bispectrum(k,q,s):
@@ -115,19 +141,21 @@ def compute_tcf(r, bispectra, n_k, n_q, p):
     return np.array(t)
 
     
-def tcf(field, length = 400, rbins = 200):
+def tcf(field, length = 400, rbins = 200, cutoff = False):
     '''computes the triangle correlation function for given field
     -field: field, already in fourier space
     -length: realspace length of box(survey size)
     -rbins: number of r for which we want to compute s(r)'''
 
     #declaring some global constans
-    global epsilon_k, k_vals, k_norms, L, n
+    global epsilon_k, k_vals, k_norms, L, n, k_cutoff
     epsilon_k = field/np.abs(field) #phase factor of field
     n = field.shape[0]
     L = length
+    k_cutoff = cutoff
     k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
     
+
     bispectra, norms_k, norms_q, p = compute_bispectrum()
    
     r = np.linspace(0.5, 50, rbins)
