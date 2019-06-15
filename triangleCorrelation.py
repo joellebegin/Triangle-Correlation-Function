@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 
 def remove_k(vectors):
-    theta = int(input('cutoff line inclination (in degrees):  '))
+    theta = int(input('         cutoff line inclination (in degrees): '))
     theta_rad = theta*(np.pi/180)
 
     c_ind = []
