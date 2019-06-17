@@ -53,7 +53,7 @@ if input('         Display results? [y/n]:  ') == 'y':
     ax.grid(color = '0.7')
     ax.set_facecolor('0.8')
 
-    ax.set_ylim(-0.01, 0.05)
+    ax.set_ylim(-0.01, 0.5)
     ax.set_xlabel('r (Mpc)')
     ax.set_ylabel('s(r)')
 

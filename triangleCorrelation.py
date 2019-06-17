@@ -50,6 +50,7 @@ def bispectrum(k,q,s):
     Returns b, an array of bispectra for that specific k and q, and p, the
     corresponding norm of p for the bispectra'''
     sq3 = np.sqrt(3)
+    delta_k = 2*np.pi/L
     #separating components
     kx,ky = k[0],k[1]
     qx,qy = q[:,0], q[:,1]
@@ -58,8 +59,12 @@ def bispectrum(k,q,s):
     #evaluating bispectrum
     b = epsilon_k[kx,ky]*epsilon_k[qx,qy]*np.conj(epsilon_k[sx,sy])
     
+    
+    #going from indices to actual units
+    kx, ky = kx*delta_k, ky*delta_k
+    qx, qy = qx*delta_k, qy*delta_k
     #constructing p vector and taking norm
-    px = kx + 0.5*qy + 0.5*sq3*qy
+    px = kx/ + 0.5*qy + 0.5*sq3*qy
     py = ky - 0.5*sq3*qx + 0.5*qy
     p_vects = np.vstack((px,py))
     norm_p = np.linalg.norm(p_vects, axis = 0)
@@ -74,23 +79,21 @@ def bispec_k(i):
     q_vects = k_vals[i+1:]
     sum_kq = k_i + q_vects
     
-    #the elements in (k + q) that are out of range. we simply don't include these
-    indices = np.unique(np.argwhere(sum_kq >=n)[:,0])
-    
-    if len(indices) == len(sum_kq): #if True, all (k+q) are out of range
-        return 
-    else: 
-        #deleting elements that result in an out of range vector
-        s_inrange = np.delete(sum_kq, indices,0) 
-        q_inrange = np.delete(q_vects, indices,0)
+    sum_kq = np.where(sum_kq <=(n-1), sum_kq, sum_kq -n)
         
-        spec,p = bispectrum(k_i, q_inrange, s_inrange)
+    spec,p = bispectrum(k_i, q_vects, sum_kq)
         
+    norms_q = k_norms[i+1:]
+    norms_k = k_norms[i]*np.ones(len(norms_q))
         
-        norms_q = np.delete(k_norms[i+1:], indices)
-        norms_k = k_norms[i]*np.ones(len(norms_q))
-        
-        return spec, norms_q, norms_k, p
+    return spec, norms_k, norms_q, p
+
+def bispec_length():
+    N = n**2 -1
+    length = 0
+    for i in range(1,N):
+        length += N -i
+    return length
 
 def compute_bispectrum(): 
     '''Computes the bispectrum for every combination of two vectors in kspace,
@@ -99,23 +102,28 @@ def compute_bispectrum():
     
     I.e: bispec[i] = B(k,q),where norm(k) = norms_k[i] and norm(q) = norms_q[i]'''
     
-    #initializing lists
-    bispec = []
-    norms_k = []
-    norms_q = []
-    p_bispec = []
+    length = bispec_length()
     
+    #initializing lists
+    bispec = np.zeros(length) + 1j*np.zeros(length)
+    norms_k = np.zeros(length)
+    norms_q = np.zeros(length)
+    p_bispec = np.zeros(length)
+                        
+    start_ind = 0
+    end_ind = 0
     #iterating through every vector and filling up lists
-    for i in tqdm(range(len(k_vals) -1), desc= 'Computing bispectra'):
+    for i in tqdm(range(len(k_vals) -1), desc='Computing bispectra'):
         data = bispec_k(i)
-
-        if data is not None: 
-            bispec.append(data[0])
-            norms_q.append(data[1])
-            norms_k.append(data[2])
-            p_bispec.append(data[3])        
-   
-    return np.hstack(bispec), np.hstack(norms_k), np.hstack(norms_q), np.hstack(p_bispec)
+        end_ind = start_ind + len(data[1])
+        
+        bispec[start_ind:end_ind] = data[0]
+        norms_k[start_ind:end_ind] = data[1]
+        norms_q[start_ind:end_ind] =data[2]
+        p_bispec[start_ind:end_ind] =data[3]
+        
+        start_ind = end_ind
+    return bispec, norms_k, norms_q, p_bispec
     
     
 def sr(r_i, spec, n_k, n_q, p):
@@ -124,7 +132,7 @@ def sr(r_i, spec, n_k, n_q, p):
     prefactor.'''
     
     #indices in norms where k&&q <= pi/r
-    ind_kq = np.argwhere((n_k <= np.pi/r_i) & (n_q <= np.pi/r_i) )
+    ind_kq = np.argwhere( (n_k <= np.pi/r_i) & (n_q <= np.pi/r_i) )
 
     spec_good = spec[ind_kq]
     p_good = p[ind_kq]
@@ -155,12 +163,9 @@ def tcf(field, length = 400, rbins = 200, cutoff = False):
     k_cutoff = cutoff
     k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
     
-
+    
     bispectra, norms_k, norms_q, p = compute_bispectrum()
-   
-    r = np.linspace(0.5, 50, rbins)
+    r = np.linspace(0.5, 30, rbins)
     triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
     
     return r, triangle_corr
-    
-
