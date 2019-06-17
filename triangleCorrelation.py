@@ -1,6 +1,7 @@
 import numpy as np 
 from scipy.special import j0
 from tqdm import tqdm
+import sys
 
 
 def remove_k(vectors):
@@ -165,6 +166,16 @@ def tcf(field, length = 400, rbins = 200, cutoff = False):
     
     
     bispectra, norms_k, norms_q, p = compute_bispectrum()
+    
+    print('the size of bispectra array is ', sys.getsizeof(bispectra)/(10**9), ' gigabytes. \n' )
+
+    print('the size of norms_k array is ' ,sys.getsizeof(norms_k)/(10**9), ' gigabytes. \n' )
+
+    print('the size of norms_q array is ', sys.getsizeof(norms_q)/(10**9), ' gigabytes. \n' )
+
+    print('the size of p array is ', sys.getsizeof(p)/(10**9), ' gigabytes. \n' )
+    
+    print('in total, these arrays take up ', sys.getsizeof(bispectra)/(10**9) + sys.getsizeof(norms_k)/(10**9) + sys.getsizeof(norms_q)/(10**9) + sys.getsizeof(p)/(10**9), ' gigs of memory')
     r = np.linspace(0.5, 30, rbins)
     triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
     
