@@ -5,7 +5,10 @@ import sys
 
 
 def remove_k(vectors):
-    theta = int(input('         cutoff line inclination (in degrees): '))
+    '''If we are considering the foreground wedge, this function returns the 
+    indices of the k vectors which we can still consider'''
+
+    theta = int(input('\t\tcutoff line inclination (in degrees): '))
     theta_rad = theta*(np.pi/180)
 
     c_ind = []
@@ -13,7 +16,8 @@ def remove_k(vectors):
     vx = vectors[:,0]
     vy =vectors[:,1]
 
-    line = vx*np.tan(theta_rad)
+    line = vx*np.tan(theta_rad) #modes below this line are discarded
+
     for i, point in enumerate(line):
         if vy[i] > point:
             c_ind.append(i)
@@ -30,26 +34,23 @@ def k_vects():
     
     #slice at one in order to not include zero vector
     k = np.vstack((x.flatten(),y.flatten())).transpose()[1:]
-    norms_k= np.linalg.norm(k, axis = 1)
-    ind = np.argsort(norms_k) #sorting
-    
-    k_sorted = k[ind]
-    norm_sorted = norms_k[ind]*delta_k
-    
+    norms_k= np.linalg.norm(k, axis = 1)*delta_k
+
     if k_cutoff:
-        cutoff_indices = remove_k(k_sorted)
-        vectors = k_sorted[cutoff_indices]
-        norms = norm_sorted[cutoff_indices]
+        cutoff_indices = remove_k(k)
+        vectors = k[cutoff_indices]
+        norms = norms_k[cutoff_indices]
         return vectors, norms
     else:
-        return k_sorted, norm_sorted
+        return k, norms_k
 
 
 def bispectrum(k,q,s):
     '''evaluates bispectrum and constructs p vector
     
-    Returns b, an array of bispectra for that specific k and q, and p, the
-    corresponding norm of p for the bispectra'''
+    Returns b = {B(k,q)}, for the given k and q, and p, the corresponding norm 
+    of p for the bispectra'''
+
     sq3 = np.sqrt(3)
     delta_k = 2*np.pi/L
     #separating components
@@ -58,14 +59,14 @@ def bispectrum(k,q,s):
     sx,sy = s[:,0], s[:,1]
 
     #evaluating bispectrum
-    b = epsilon_k[kx,ky]*epsilon_k[qx,qy]*np.conj(epsilon_k[sx,sy])
-    
+    #have to give y index first since that's how the field data structure works
+    b = epsilon_k[ky,kx]*epsilon_k[qy,qx]*np.conj(epsilon_k[sy,sx])
     
     #going from indices to actual units
     kx, ky = kx*delta_k, ky*delta_k
     qx, qy = qx*delta_k, qy*delta_k
     #constructing p vector and taking norm
-    px = kx/ + 0.5*qy + 0.5*sq3*qy
+    px = kx + 0.5*qy + 0.5*sq3*qy
     py = ky - 0.5*sq3*qx + 0.5*qy
     p_vects = np.vstack((px,py))
     norm_p = np.linalg.norm(p_vects, axis = 0)
@@ -76,11 +77,12 @@ def bispec_k(i):
     '''Does the actual computation, whearas compute_bispectrum simply helps 
     organize and performs the iteration.'''
 
-    k_i = k_vals[i]
+    k_i = k_vals[i] #k vector we're "fixing"
     q_vects = k_vals[i+1:]
     sum_kq = k_i + q_vects
     
-    sum_kq = np.where(sum_kq <=(n-1), sum_kq, sum_kq -n)
+    #periodic boundary conditions for out of range vectors
+    sum_kq = np.where(sum_kq <=(n-1), sum_kq, sum_kq -(n-1))
         
     spec,p = bispectrum(k_i, q_vects, sum_kq)
         
@@ -90,6 +92,7 @@ def bispec_k(i):
     return spec, norms_k, norms_q, p
 
 def bispec_length():
+    '''returns the number of bispectra that will be computed'''
     N = n**2 -1
     length = 0
     for i in range(1,N):
@@ -154,7 +157,8 @@ def tcf(field, length = 400, rbins = 200, cutoff = False):
     '''computes the triangle correlation function for given field
     -field: field, already in fourier space
     -length: realspace length of box(survey size)
-    -rbins: number of r for which we want to compute s(r)'''
+    -rbins: number of r for which we want to compute s(r)
+    -cutoff: whether we want to include the foreground wedge'''
 
     #declaring some global constans
     global epsilon_k, k_vals, k_norms, L, n, k_cutoff
@@ -164,18 +168,11 @@ def tcf(field, length = 400, rbins = 200, cutoff = False):
     k_cutoff = cutoff
     k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
     
-    
     bispectra, norms_k, norms_q, p = compute_bispectrum()
+
+    array_memory = norms_k.nbytes/(10**9)
+    print('\n in total, the bispectra, norms_k, norms_q and p arrays take up ', array_memory*3 + 2*array_memory, ' gigs of memory\n')
     
-    print('the size of bispectra array is ', sys.getsizeof(bispectra)/(10**9), ' gigabytes. \n' )
-
-    print('the size of norms_k array is ' ,sys.getsizeof(norms_k)/(10**9), ' gigabytes. \n' )
-
-    print('the size of norms_q array is ', sys.getsizeof(norms_q)/(10**9), ' gigabytes. \n' )
-
-    print('the size of p array is ', sys.getsizeof(p)/(10**9), ' gigabytes. \n' )
-    
-    print('in total, these arrays take up ', sys.getsizeof(bispectra)/(10**9) + sys.getsizeof(norms_k)/(10**9) + sys.getsizeof(norms_q)/(10**9) + sys.getsizeof(p)/(10**9), ' gigs of memory')
     r = np.linspace(0.5, 30, rbins)
     triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
     
