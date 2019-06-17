@@ -9,10 +9,10 @@ length = None
 bins = None
 cut = None
 
-if input('     set realspace length of box? [y/n]: ') == "y":
+if input('     set realspace length of box? default is 400 Mpc. [y/n]: ') == "y":
     length = int(input('         length: '))
 
-if input('     set number of r bins? [y/n]: ') == "y":
+if input('     set number of r bins? default is 200. [y/n]: ') == "y":
     bins = int(input('         nbins: '))
 
 if input('     introduce foreground wedge? [y/n]: ') == 'y':
@@ -25,7 +25,7 @@ if  field_type == 'gaussian':
 elif field_type == 'file':
     loc = input('         name of field file: ')
     f = np.loadtxt(loc, delimiter=',')
-    field = fftshift(fft2(fftshift(f)))
+    field = fft2(fftshift(f))
 print('Beginning computation')
 
 if length is not None and bins is not None:
@@ -53,7 +53,7 @@ if input('         Display results? [y/n]:  ') == 'y':
     ax.grid(color = '0.7')
     ax.set_facecolor('0.8')
 
-    ax.set_ylim(-0.01, 0.5)
+    #ax.set_ylim(-0.01, 0.5)
     ax.set_xlabel('r (Mpc)')
     ax.set_ylabel('s(r)')
 

@@ -58,14 +58,14 @@ def bispectrum(k,q,s):
     sx,sy = s[:,0], s[:,1]
 
     #evaluating bispectrum
-    b = epsilon_k[kx,ky]*epsilon_k[qx,qy]*np.conj(epsilon_k[sx,sy])
+    b = epsilon_k[ky,kx]*epsilon_k[qy,qx]*np.conj(epsilon_k[sy,sx])
     
     
     #going from indices to actual units
     kx, ky = kx*delta_k, ky*delta_k
     qx, qy = qx*delta_k, qy*delta_k
     #constructing p vector and taking norm
-    px = kx/ + 0.5*qy + 0.5*sq3*qy
+    px = kx + 0.5*qy + 0.5*sq3*qy
     py = ky - 0.5*sq3*qx + 0.5*qy
     p_vects = np.vstack((px,py))
     norm_p = np.linalg.norm(p_vects, axis = 0)
@@ -80,7 +80,7 @@ def bispec_k(i):
     q_vects = k_vals[i+1:]
     sum_kq = k_i + q_vects
     
-    sum_kq = np.where(sum_kq <=(n-1), sum_kq, sum_kq -n)
+    sum_kq = np.where(sum_kq <=(n-1), sum_kq, sum_kq -(n-1))
         
     spec,p = bispectrum(k_i, q_vects, sum_kq)
         
@@ -166,16 +166,9 @@ def tcf(field, length = 400, rbins = 200, cutoff = False):
     
     
     bispectra, norms_k, norms_q, p = compute_bispectrum()
-    
-    print('the size of bispectra array is ', sys.getsizeof(bispectra)/(10**9), ' gigabytes. \n' )
 
-    print('the size of norms_k array is ' ,sys.getsizeof(norms_k)/(10**9), ' gigabytes. \n' )
-
-    print('the size of norms_q array is ', sys.getsizeof(norms_q)/(10**9), ' gigabytes. \n' )
-
-    print('the size of p array is ', sys.getsizeof(p)/(10**9), ' gigabytes. \n' )
-    
-    print('in total, these arrays take up ', sys.getsizeof(bispectra)/(10**9) + sys.getsizeof(norms_k)/(10**9) + sys.getsizeof(norms_q)/(10**9) + sys.getsizeof(p)/(10**9), ' gigs of memory')
+    array_memory = norms_k.nbytes/(10**9)
+    print('\n in total, the bispectra, norms_k, norms_q and p arrays take up ', array_memory*3 + 2*array_memory, ' gigs of memory\n')
     r = np.linspace(0.5, 30, rbins)
     triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
     
