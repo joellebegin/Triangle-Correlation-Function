@@ -34,7 +34,7 @@ def k_vects():
     
     #slice at one in order to not include zero vector
     k = np.vstack((x.flatten(),y.flatten())).transpose()[1:]
-    norms_k= np.linalg.norm(k, axis = 1)
+    norms_k= np.linalg.norm(k, axis = 1)*delta_k
 
     if k_cutoff:
         cutoff_indices = remove_k(k)
