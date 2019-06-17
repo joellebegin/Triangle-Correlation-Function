@@ -29,8 +29,10 @@ def k_vects():
     0 vector. 
     
     Returns array of the form: k = [[k1x, k1y], [k2x, k2y], ...]'''
-    x,y = np.indices((n,n))
-    delta_k = 2*np.pi/L #scaling factor for k vector
+    
+    #going to system where orign is pixel at (n//2,n//2)
+    x,y = np.indices((n,n)) - n//2 
+    delta_k = 2*np.pi/L #scaling factor to go from real space to fourier space
     
     #slice at one in order to not include zero vector
     k = np.vstack((x.flatten(),y.flatten())).transpose()[1:]
@@ -53,14 +55,14 @@ def bispectrum(k,q,s):
 
     sq3 = np.sqrt(3)
     delta_k = 2*np.pi/L
-    #separating components
-    kx,ky = k[0],k[1]
+    #separating components, going back to coordinate system where field is stored
+    kx,ky = k[0],k[1] 
     qx,qy = q[:,0], q[:,1]
     sx,sy = s[:,0], s[:,1]
 
     #evaluating bispectrum
     #have to give y index first since that's how the field data structure works
-    b = epsilon_k[ky,kx]*epsilon_k[qy,qx]*np.conj(epsilon_k[sy,sx])
+    b = epsilon_k[ky+ n//2,kx+ n//2]*epsilon_k[qy+ n//2,qx+ n//2]*np.conj(epsilon_k[sy+ n//2,sx+ n//2])
     
     #going from indices to actual units
     kx, ky = kx*delta_k, ky*delta_k
@@ -82,7 +84,8 @@ def bispec_k(i):
     sum_kq = k_i + q_vects
     
     #periodic boundary conditions for out of range vectors
-    sum_kq = np.where(sum_kq <=(n-1), sum_kq, sum_kq -(n-1))
+    sum_kq = np.where(sum_kq <=(n//2-1), sum_kq, sum_kq -n)
+    sum_kq = np.where(sum_kq >= -1*n//2, sum_kq, sum_kq +n)
         
     spec,p = bispectrum(k_i, q_vects, sum_kq)
         
@@ -129,20 +132,22 @@ def compute_bispectrum():
         start_ind = end_ind
     return bispec, norms_k, norms_q, p_bispec
     
-    
+
 def sr(r_i, spec, n_k, n_q, p):
     '''given a value of r, determines which bispectra satisfy the pi/r cutoff.
     Computes window function for each value, sums over w*B, and multiplies by 
     prefactor.'''
     
     #indices in norms where k&&q <= pi/r
-    ind_kq = np.argwhere( (n_k <= np.pi/r_i) & (n_q <= np.pi/r_i) )
+    ind_kq = np.argwhere( (n_k > np.pi/r_i) & (n_q > np.pi/r_i) )
 
-    spec_good = spec[ind_kq]
-    p_good = p[ind_kq]
+    spec[ind_kq] =0
+    p[ind_kq] =0
     
-    window = j0(r_i*p_good)
-    sum_r = np.sum(spec_good*window)
+    window = j0(r_i*p)
+    window[ind_kq] =0
+
+    sum_r = np.sum(spec*window)
     return ((r_i/L)**3)*sum_r
 
 def compute_tcf(r, bispectra, n_k, n_q, p):
