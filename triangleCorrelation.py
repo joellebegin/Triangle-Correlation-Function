@@ -2,7 +2,14 @@ import numpy as np
 from scipy.special import j0
 from tqdm import tqdm
 import sys
+from mpi4py import MPI
+import matplotlib.pyplot as plt
 
+comm = MPI.COMM_WORLD
+myID = comm.rank 
+
+master = 0
+num_helpers = comm.size -1
 
 def remove_k(vectors):
     '''If we are considering the foreground wedge, this function returns the 
@@ -151,12 +158,76 @@ def sr(r_i, spec, n_k, n_q, p):
     return ((r_i/L)**3)*sum_r
 
 def compute_tcf(r, bispectra, n_k, n_q, p):
-    '''iterates through the correlation scales'''
-    t = []
-    for scale in tqdm(r, desc='Computing s(r)'): 
-        t.append(sr(scale, bispectra, n_k, n_q, p))
-    return np.array(t)
+    '''iterates through the correlation scales and parallelizes'''
+    
+    comm = MPI.COMM_WORLD
+    myID = comm.rank 
 
+    master = 0
+    num_helpers = comm.size -1
+
+    num_tasks = len(r)
+    num_active_helpers = min(num_helpers, num_tasks)
+    print(num_tasks)
+    print(num_active_helpers)
+    if myID == master:
+        
+        t = np.zeros(len(r))
+        num_sent = 0
+
+        print('sending out assignments')
+        
+        #sends out initial assignments
+        for helperID in range(1, num_active_helpers+1):
+            print('I asked', helperID, 'to do number', helperID)
+            comm.send(helperID -1, dest = helperID, tag = helperID)
+            num_sent +=1
+
+        #assigning rest of assignments
+        for i in range(1, num_tasks +1):
+            status = MPI.Status()
+            print(status)
+            temp = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+            print(temp)
+            sender = status.Get_source()
+            tag = status.Get_tag()
+            t[tag] = temp
+            print('num sent: ', num_sent)
+            if num_sent < num_tasks:
+                comm.send(num_sent, dest = sender, tag = 1)
+                print('I asked', sender, 'to do index', num_sent +1)
+                num_sent += 1
+            else:
+                comm.send(0, dest = sender, tag = 0)
+    
+        return t
+
+    elif myID <= num_active_helpers:
+        complete = False
+        print('i recieved a task!')
+
+        while (complete == False):
+            status = MPI.Status()
+            assignment = comm.recv(source = master, tag = MPI.ANY_TAG, status = status)
+            tag = status.Get_tag()
+
+            if tag ==0:
+                complete = True
+            else:
+                r_i = r[assignment]
+                ind_kq = np.argwhere( (n_k > np.pi/r_i) & (n_q > np.pi/r_i) )
+                print(r_i)
+                bispectra[ind_kq] =0
+                p[ind_kq] =0
+                
+                window = j0(r_i*p)
+                window[ind_kq] =0
+
+                sum_r = np.sum(bispectra*window)
+                
+                comm.send(((r_i/L)**3)*sum_r, dest = master, tag = assignment)
+
+    
     
 def tcf(field, length = 400, rbins = 200, cutoff = False):
     '''computes the triangle correlation function for given field
@@ -164,21 +235,45 @@ def tcf(field, length = 400, rbins = 200, cutoff = False):
     -length: realspace length of box(survey size)
     -rbins: number of r for which we want to compute s(r)
     -cutoff: whether we want to include the foreground wedge'''
+    if myID == master:
+        #declaring some global constans
+        global epsilon_k, k_vals, k_norms, L, n, k_cutoff
+        epsilon_k = field/np.abs(field) #phase factor of field
+        n = field.shape[0]
+        L = length
+        k_cutoff = cutoff
+        k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
+        
+        bispectra, norms_k, norms_q, p = compute_bispectrum()
 
-    #declaring some global constans
-    global epsilon_k, k_vals, k_norms, L, n, k_cutoff
-    epsilon_k = field/np.abs(field) #phase factor of field
-    n = field.shape[0]
-    L = length
-    k_cutoff = cutoff
-    k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
-    
-    bispectra, norms_k, norms_q, p = compute_bispectrum()
+        array_memory = norms_k.nbytes/(10**9)
+        print('\n in total, the bispectra, norms_k, norms_q and p arrays take up ', array_memory*3 + 2*array_memory, ' gigs of memory\n')
+        
+        r = np.linspace(0.5, 30, rbins)
+        triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
+        
+        return r, triangle_corr
 
-    array_memory = norms_k.nbytes/(10**9)
-    print('\n in total, the bispectra, norms_k, norms_q and p arrays take up ', array_memory*3 + 2*array_memory, ' gigs of memory\n')
-    
-    r = np.linspace(0.5, 30, rbins)
-    triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
-    
-    return r, triangle_corr
+def main():
+    if myID == master:
+        N = 100
+        field = np.random.normal(size = (N,N)) + 1j*np.random.normal(size = (N,N))
+        results = tcf(field)
+
+        fig, ax = plt.subplots(figsize = (20,10))
+        ax.plot(results[0], np.real(results[1]))
+        
+        plt.rcParams.update({'font.size' :15, 'axes.labelsize': 30})
+
+        ax.grid()
+        ax.grid(color = '0.7')
+        ax.set_facecolor('0.8')
+
+        #ax.set_ylim(-0.01, 0.5)
+        ax.set_xlabel('r (Mpc)')
+        ax.set_ylabel('s(r)')
+
+        plt.show()
+
+if __name__ == "__main__":
+    main()
