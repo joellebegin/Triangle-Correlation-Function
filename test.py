@@ -136,6 +136,15 @@ def main():
     master = 0
     numHelpers = comm.size -1
 
+    #declaring some global constans
+    global epsilon_k, k_vals, k_norms, L, n
+    epsilon_k = field/np.abs(field) #phase factor of field
+    n = field.shape[0]
+    L = 400
+    k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
+
+    spec, n_k, n_q, p = compute_bispectrum()
+
     r = np.linspace(0.5, 30, 100)
     num_tasks = len(r)
     num_active_helpers = min(numHelpers, num_tasks)
@@ -143,15 +152,6 @@ def main():
     if myID == master:
         N = int(input('\tNumber of pixels (along one axis)?: '))
         field = np.random.normal(size = (N,N)) + 1j*np.random.normal(size = (N,N))
-
-        #declaring some global constans
-        global epsilon_k, k_vals, k_norms, L, n
-        epsilon_k = field/np.abs(field) #phase factor of field
-        n = field.shape[0]
-        L = 400
-        k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
-
-        spec, n_k, n_q, p = compute_bispectrum()
         
         triangle_corr = np.zeros(len(r))
         
