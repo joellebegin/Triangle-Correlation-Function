@@ -111,7 +111,7 @@ def compute_bispectrum():
 
 
 def display(sr_data):
-    x = np.linspace(0.5, 30, 100)
+    x = np.linspace(0.5, 30, 500)
     y = sr_data
 
     fig, ax = plt.subplots(figsize = (20,10))
@@ -136,6 +136,8 @@ def main():
     master = 0
     numHelpers = comm.size -1
 
+    N = 100
+    field = np.random.normal(size = (N,N)) + 1j*np.random.normal(size = (N,N))
     #declaring some global constans
     global epsilon_k, k_vals, k_norms, L, n
     epsilon_k = field/np.abs(field) #phase factor of field
@@ -145,13 +147,11 @@ def main():
 
     spec, n_k, n_q, p = compute_bispectrum()
 
-    r = np.linspace(0.5, 30, 100)
+    r = np.linspace(0.5, 30, 500)
     num_tasks = len(r)
     num_active_helpers = min(numHelpers, num_tasks)
 
     if myID == master:
-        N = int(input('\tNumber of pixels (along one axis)?: '))
-        field = np.random.normal(size = (N,N)) + 1j*np.random.normal(size = (N,N))
         
         triangle_corr = np.zeros(len(r))
         
