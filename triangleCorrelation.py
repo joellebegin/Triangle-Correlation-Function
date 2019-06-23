@@ -34,9 +34,11 @@ def k_vects():
     x,y = np.indices((n,n)) - n//2 
     delta_k = 2*np.pi/L #scaling factor to go from real space to fourier space
     
-    #slice at one in order to not include zero vector
-    k = np.vstack((x.flatten(),y.flatten())).transpose()[1:]
+    
+    k = np.vstack((x.flatten(),y.flatten())).transpose()
     norms_k= np.linalg.norm(k, axis = 1)*delta_k
+
+    ind = np.argsort(norms_k)
 
     if k_cutoff:
         cutoff_indices = remove_k(k)
@@ -44,7 +46,8 @@ def k_vects():
         norms = norms_k[cutoff_indices]
         return vectors, norms
     else:
-        return k, norms_k
+        #slice at one in order to not include zero vector
+        return k[ind][1:], norms_k[ind][1:]
 
 
 def bispectrum(k,q,s):
