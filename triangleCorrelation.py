@@ -1,29 +1,11 @@
 import numpy as np 
 from scipy.special import j0
 from tqdm import tqdm
-import sys
+from mpi4py import MPI
+import matplotlib.pyplot as plt
+from numpy.fft import fft2, fftshift
+from time import time
 
-
-def remove_k(vectors):
-    '''If we are considering the foreground wedge, this function returns the 
-    indices of the k vectors which we can still consider'''
-
-    theta = int(input('\t\tcutoff line inclination (in degrees): '))
-    theta_rad = theta*(np.pi/180)
-
-    c_ind = []
-
-    vx = vectors[:,0]
-    vy =vectors[:,1]
-
-    line = vx*np.tan(theta_rad) #modes below this line are discarded
-
-    for i, point in enumerate(line):
-        if vy[i] > point:
-            c_ind.append(i)
-
-    return c_ind
-    
 def k_vects():
     '''Constructs array of all vectors for an n by n grid, excluding 
     0 vector. 
@@ -40,14 +22,8 @@ def k_vects():
 
     ind = np.argsort(norms_k)
 
-    if k_cutoff:
-        cutoff_indices = remove_k(k)
-        vectors = k[cutoff_indices]
-        norms = norms_k[cutoff_indices]
-        return vectors, norms
-    else:
-        #slice at one in order to not include zero vector
-        return k[ind][1:], norms_k[ind][1:]
+    #slice at one in order to not include zero vector
+    return k[ind][1:], norms_k[ind][1:]
 
 
 def bispectrum(k,q,s):
@@ -123,7 +99,7 @@ def compute_bispectrum():
     start_ind = 0
     end_ind = 0
     #iterating through every vector and filling up lists
-    for i in tqdm(range(len(k_vals) -1), desc='Computing bispectra'):
+    for i in tqdm(range(len(k_vals) -1), desc='computing bispectra'):
         data = bispec_k(i)
         end_ind = start_ind + len(data[1])
         
@@ -134,7 +110,6 @@ def compute_bispectrum():
         
         start_ind = end_ind
     return bispec, norms_k, norms_q, p_bispec
-    
 
 def sr(r_i, spec, n_k, n_q, p):
     '''given a value of r, determines which bispectra satisfy the pi/r cutoff.
@@ -153,35 +128,105 @@ def sr(r_i, spec, n_k, n_q, p):
     sum_r = np.sum(spec*window)
     return ((r_i/L)**3)*sum_r
 
-def compute_tcf(r, bispectra, n_k, n_q, p):
-    '''iterates through the correlation scales'''
-    t = []
-    for scale in tqdm(r, desc='Computing s(r)'): 
-        t.append(sr(scale, bispectra, n_k, n_q, p))
-    return np.array(t)
 
-    
-def tcf(field, length = 400, rbins = 200, cutoff = False):
-    '''computes the triangle correlation function for given field
-    -field: field, already in fourier space
-    -length: realspace length of box(survey size)
-    -rbins: number of r for which we want to compute s(r)
-    -cutoff: whether we want to include the foreground wedge'''
+def main():
+    #initiating communication
+    comm = MPI.COMM_WORLD
+    myID = comm.rank
 
-    #declaring some global constans
-    global epsilon_k, k_vals, k_norms, L, n, k_cutoff
-    epsilon_k = field/np.abs(field) #phase factor of field
-    n = field.shape[0]
-    L = length
-    k_cutoff = cutoff
-    k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
-    
-    bispectra, norms_k, norms_q, p = compute_bispectrum()
+    master = 0
+    numHelpers = comm.size -1
 
-    array_memory = norms_k.nbytes/(10**9)
-    print('\n in total, the bispectra, norms_k, norms_q and p arrays take up ', array_memory*3 + 2*array_memory, ' gigs of memory\n')
+    r = np.linspace(0.5, 30, 200) #list of correlation scales
+    num_tasks = len(r)
+    num_active_helpers = min(numHelpers, num_tasks)
+
+    if myID == master:
+        file_loc = input() #master reads file location
+        for helperID in range(1, num_active_helpers+1):
+            comm.send(file_loc, dest = helperID, tag = helperID)
     
-    r = np.linspace(0.5, 30, rbins)
-    triangle_corr = compute_tcf(r, bispectra, norms_k, norms_q, p)
-    
-    return r, triangle_corr
+    elif myID <= num_active_helpers:
+        #every helper loads file
+        loc = comm.recv(source = master, tag = MPI.ANY_TAG)
+        field = np.loadtxt(loc, dtype = complex, delimiter=',')
+
+        #declaring some global constans
+        #MAKE THIS STUFF INTO A METHOD/CLASS
+        global epsilon_k, k_vals, k_norms, L, n
+        epsilon_k = field/np.abs(field) #phase factor of field
+        n = field.shape[0]
+        L = 400
+        k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
+
+        spec, n_k, n_q, p = compute_bispectrum()
+
+
+    if myID == master:
+        
+        triangle_corr = np.zeros(len(r))
+        
+        num_sent = 0
+        
+        #sending out initial assignments
+        for helperID in range(1, num_active_helpers+1):
+            #print('I asked', helperID, 'to do index', helperID)
+            comm.send(helperID-1, dest = helperID, tag = helperID)
+            num_sent += 1
+
+        #sending out tasks
+        for i in range(1, num_tasks+1):
+            status = MPI.Status()
+            temp = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+            sender = status.Get_source()
+            tag = status.Get_tag()
+            triangle_corr[tag] = np.real(temp)
+
+            if num_sent < num_tasks:
+                comm.send(num_sent, dest = sender, tag = 1)
+                #print('I asked', sender, 'to do index', num_sent +1)
+                num_sent += 1
+            else:
+                print('everything is done so I asked', sender, 'to pack up')
+                comm.send(0, dest = sender, tag = 0)
+
+
+        #MAKE THIS INTO A FUNCTION AS WELL
+        fig, ax = plt.subplots(figsize = (20,10))
+        ax.plot(r, triangle_corr)
+        
+        plt.rcParams.update({'font.size' :15, 'axes.labelsize': 30})
+
+        ax.grid()
+        ax.grid(color = '0.7')
+        ax.set_facecolor('0.8')
+
+        ax.set_ylim(-0.1, 0.5)
+        ax.set_xlabel('r (Mpc)')
+        ax.set_ylabel('s(r)')
+
+        name = file_loc +'.png'
+        plt.savefig(name)
+
+
+        name = file_loc + '.csv'
+        np.savetxt(name, triangle_corr, delimiter=',')
+        
+    elif myID <= num_active_helpers:
+        complete = False
+        while (complete == False):
+            status = MPI.Status()
+            assignment = comm.recv(source = master, tag = MPI.ANY_TAG, status = status)
+            tag = status.Get_tag()
+
+            if tag ==0:
+                complete = True
+            else:
+                ri = r[assignment]
+                sumr = sr(ri, spec, n_k, n_q, p)
+                comm.send(sumr, dest = master, tag = assignment)
+
+    comm.Barrier()
+
+if __name__ == "__main__":
+    main()
