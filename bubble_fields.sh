@@ -11,7 +11,7 @@ for f in *.txt; do
 
 for f in fields/*.txt; do
     echo "### doing $f ###"
-    echo ${f} | mpiexec -n 3 python triangleCorrelation.py
+    echo ${f} | mpiexec -n 5 python triangleCorrelation.py
     done
 
 for f in fields/*.csv; do
