@@ -4,7 +4,7 @@ from tqdm import tqdm
 from mpi4py import MPI
 import matplotlib.pyplot as plt
 from numpy.fft import fft2, fftshift
-from time import time
+from time import time 
 
 def k_vects():
     '''Constructs array of all vectors for an n by n grid, excluding 
@@ -100,7 +100,7 @@ def compute_bispectrum():
     end_ind = 0
     #iterating through every vector and filling up lists
     for i in tqdm(range(len(k_vals) -1), desc='computing bispectra'):
-        data = bispec_k(i)
+        data = bispec_k(i)command line open all documents with merge conflicts
         end_ind = start_ind + len(data[1])
         
         bispec[start_ind:end_ind] = data[0]
