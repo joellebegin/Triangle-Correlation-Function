@@ -6,6 +6,19 @@ import matplotlib.pyplot as plt
 from numpy.fft import fft2, fftshift
 from time import time 
 
+def e_k(field):
+    delta_k = 2*np.pi/L
+    abs_field = np.abs(field)
+    epsilonk = np.ones((n,n), dtype=complex)
+
+    zero_ind = np.argwhere(abs_field < delta_k)
+    epsilonk[zero_ind.transpose()[0], zero_ind.transpose()[1]] = 0
+
+    ind_1 = np.where(epsilonk)
+    epsilonk[ind_1]*= field[ind_1]/abs_field[ind_1]
+
+    return epsilonk
+
 def k_vects():
     '''Constructs array of all vectors for an n by n grid, excluding 
     0 vector. 
@@ -99,8 +112,8 @@ def compute_bispectrum():
     start_ind = 0
     end_ind = 0
     #iterating through every vector and filling up lists
-    for i in tqdm(range(len(k_vals) -1), desc='computing bispectra'):
-        data = bispec_k(i)command line open all documents with merge conflicts
+    for i in range(len(k_vals) -1):
+        data = bispec_k(i)
         end_ind = start_ind + len(data[1])
         
         bispec[start_ind:end_ind] = data[0]
@@ -128,7 +141,6 @@ def sr(r_i, spec, n_k, n_q, p):
     sum_r = np.sum(spec*window)
     return ((r_i/L)**3)*sum_r
 
-
 def main():
     #initiating communication
     comm = MPI.COMM_WORLD
@@ -154,10 +166,10 @@ def main():
         #declaring some global constans
         #MAKE THIS STUFF INTO A METHOD/CLASS
         global epsilon_k, k_vals, k_norms, L, n
-        epsilon_k = field/np.abs(field) #phase factor of field
         n = field.shape[0]
         L = 400
         k_vals, k_norms = k_vects() #all k vectors to consider, and their norms
+        epsilon_k = e_k(field) #phase factor of field
 
         spec, n_k, n_q, p = compute_bispectrum()
 
@@ -187,7 +199,7 @@ def main():
                 #print('I asked', sender, 'to do index', num_sent +1)
                 num_sent += 1
             else:
-                print('everything is done so I asked', sender, 'to pack up')
+                #print('everything is done so I asked', sender, 'to pack up')
                 comm.send(0, dest = sender, tag = 0)
 
 
