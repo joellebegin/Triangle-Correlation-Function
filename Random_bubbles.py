@@ -39,8 +39,8 @@ class RandomBubbles:
         self.nb= int(nb) #Number of bubbles in the box
         self.radius=radius #Radius (in pixels) of all bubbles in the box
 
-        print("initialising a %iD box with %i cells and %i bubbles of radius %i" %(self.NDIM, self.DIM, self.nb,self.radius))
-        print("periodicity and nooverlap are (%i,%i)" %(periodic, nooverlap))
+        #print("initialising a %iD box with %i cells and %i bubbles of radius %i" %(self.NDIM, self.DIM, self.nb,self.radius))
+        #print("periodicity and nooverlap are (%i,%i)" %(periodic, nooverlap))
 
         if self.NDIM == 2:
             self.box = np.zeros([DIM, DIM])
@@ -62,16 +62,16 @@ class RandomBubbles:
 
         self.box[self.box>1.]=1. #avoid pixel value to exceed 1 in overlap zones (pixel value <-> ionisation level)
         
-        print("Number of bubbles in=", len(self.bubbles))
-        print("Box mean = ", self.box.mean())
+        #print("Number of bubbles in=", len(self.bubbles))
+        #print("Box mean = ", self.box.mean())
 
-        #Show the slice
+        """#Show the slice
         plt.ion()
         colours=['midnightblue','lightyellow']
         bounds=[0,1]
         cmap = mpl.colors.ListedColormap(colours)
         norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-
+"""
         self.xhII=np.round(self.box.mean(),decimals=3)
 
         fig = plt.figure(1, (8., 8.))
@@ -128,7 +128,7 @@ class RandomBubbles:
             if count % 100 == 0:
                 print('For %i bubbles, xhII = %.2f \n' %(count, self.box.mean())) #keeps track of process
 
-        self.summary()
+        #self.summary()
 
 	
     def bubble_mask(self, x, R):
@@ -276,17 +276,5 @@ class RandomBubbles:
     def write_ionisation_field(self):
         """ Writes field in one textfile and list of bubble locations in another"""
 	
-        filechain='Field_'+str(self.nb)+'binary_bubbles_nooverlap='+str(self.nooverlap)+'_radius='+str(self.radius)+'_xhII'+str(self.xhII)+'_N'+str(self.DIM)+'_'+str(self.NDIM)+'D.txt'
-        filechain2='Field_'+str(self.nb)+'binary_bubbles_nooverlap='+str(self.nooverlap)+'_radius='+str(self.radius)+'_xhII'+str(self.xhII)+'_N'+str(self.DIM)+'_'+str(self.NDIM)+'D_bubble_loc.txt'
-        if self.NDIM==3:
-            field=self.box
-            out=field[:,:,0]
-            for i in range(1,self.DIM):
-                out=np.r_[out,field[:,:,i]]
-            np.savetxt(filechain,out,delimiter=' ',fmt='%-10.4f')
-            np.savetxt(filechain2,np.array(self.bubbles),delimiter=' ',fmt='%i')
-
-        elif self.NDIM==2:
-            np.savetxt('bub.txt',self.box,delimiter=',')
-            #np.savetxt(filechain2,np.array(self.bubbles),delimiter=' ',fmt='%i')
-
+       
+        np.savetxt('bub.txt',self.box,delimiter=',')
