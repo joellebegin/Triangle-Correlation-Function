@@ -3,8 +3,8 @@ from Random_bubbles import RandomBubbles
 import matplotlib.pyplot as plt
 from numpy.fft import fft2, fftshift
 
-n = 100
-bubbles = RandomBubbles(DIM = n, radius = 1., nb = 60, nooverlap = True)
+n = 200
+bubbles = RandomBubbles(DIM = n, radius = 10., nb = 50, nooverlap = True)
 bubbles.write_ionisation_field()
 data = np.loadtxt('bub.txt', delimiter = ',')
 field = fftshift(fft2(fftshift(data)))

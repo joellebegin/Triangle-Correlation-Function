@@ -100,7 +100,7 @@ def compute_bispectrum():
     end_ind = 0
     #iterating through every vector and filling up lists
     for i in tqdm(range(len(k_vals) -1), desc='computing bispectra'):
-        data = bispec_k(i)command line open all documents with merge conflicts
+        data = bispec_k(i)
         end_ind = start_ind + len(data[1])
         
         bispec[start_ind:end_ind] = data[0]
@@ -116,16 +116,24 @@ def sr(r_i, spec, n_k, n_q, p):
     Computes window function for each value, sums over w*B, and multiplies by 
     prefactor.'''
     
+    # if max(n_k < np.pi/r_i):
+    #     window = j0(r_i*p)
+    #     sum_r = np.sum(spec*window)
+    # else:
     #indices in norms where k&&q <= pi/r
     ind_kq = np.argwhere( (n_k > np.pi/r_i) & (n_q > np.pi/r_i) )
+    if len(ind_kq) == 0:
+        print('true')
+        window = j0(r_i*p)
+        sum_r = np.sum(spec*window)
+    else:
+        spec[ind_kq] =0
+        p[ind_kq] =0
+        
+        window = j0(r_i*p)
+        window[ind_kq] =0
 
-    spec[ind_kq] =0
-    p[ind_kq] =0
-    
-    window = j0(r_i*p)
-    window[ind_kq] =0
-
-    sum_r = np.sum(spec*window)
+        sum_r = np.sum(spec*window)
     return ((r_i/L)**3)*sum_r
 
 
@@ -170,7 +178,7 @@ def main():
         
         #sending out initial assignments
         for helperID in range(1, num_active_helpers+1):
-            #print('I asked', helperID, 'to do index', helperID)
+            print('I asked', helperID, 'to do index', helperID)
             comm.send(helperID-1, dest = helperID, tag = helperID)
             num_sent += 1
 
@@ -184,7 +192,7 @@ def main():
 
             if num_sent < num_tasks:
                 comm.send(num_sent, dest = sender, tag = 1)
-                #print('I asked', sender, 'to do index', num_sent +1)
+                print('I asked', sender, 'to do index', num_sent +1)
                 num_sent += 1
             else:
                 print('everything is done so I asked', sender, 'to pack up')
