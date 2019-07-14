@@ -5,8 +5,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt 
 from time import time
 
-'''THIS IS LATEST VERSION'''
 class GridVectors():
+    '''class that creates object of all vectors defined by the grid spacing, 
+    as well as defining all the operations on them that compute the triangle
+    correlation function'''
     def __init__(self, field, L=80):
     
         self.L = L #real space length of box
@@ -28,6 +30,7 @@ class GridVectors():
         abs_field = np.abs(self.field)
         self.epsilon_k = np.ones((self.n, self.n), dtype=complex)
 
+        #we set pixels with absolute value < delta_k to have phase factor 0
         zero_ind = np.argwhere(abs_field < self.delta_k)
         self.epsilon_k[zero_ind.transpose()[0], zero_ind.transpose()[1]] = 0
 
@@ -35,7 +38,7 @@ class GridVectors():
         self.epsilon_k[one_ind] *= self.field[one_ind]/abs_field[one_ind]
 
     def avail(self, num):
-        '''determines { vects | norm(vects) <= num} for a given num'''
+        '''determines set of { vect | norm(vect) <= num} for a given num'''
         if max(self.norms) <= num:#ie all vectors are available
             self.vect_avail = self.vectors
         else:
@@ -59,7 +62,9 @@ class GridVectors():
         return norm_p
 
     def bispectrum(self):
-        '''evaluates bispectrum for given k and q'''
+        '''evaluates bispectrum for given k and arrray of q'''
+
+        #have to go back to indices corresponding to the np array where data is stored
         kx, ky = self.kx + self.n//2, self.ky + self.n//2 
         qx, qy = self.qx + self.n//2, self.qy + self.n//2 
         sx, sy = self.sx + self.n//2, self.sy + self.n//2 
@@ -67,7 +72,7 @@ class GridVectors():
         return self.epsilon_k[ky,kx]*self.epsilon_k[qy,qx]*np.conj(self.epsilon_k[sy,sx])
     
     def summond(self):
-        '''computes sum'''
+        '''computes the sum for a fixed value of k'''
         self.kx,self.ky = self.k[0], self.k[1]
         self.qx,self.qy = self.q[:,0], self.q[:,1]
         self.sx,self.sy = self.s[:,0], self.s[:,1]  
@@ -83,8 +88,8 @@ class GridVectors():
     def tcf(self, i, r):
         self.r = r
 
-        self.k = self.vect_avail[i]
-        self.q = self.vect_avail[i:]
+        self.k = self.vect_avail[i] #k vector being 'fixed'
+        self.q = self.vect_avail
 
         self.s = self.q+self.k
 
@@ -101,6 +106,7 @@ def display(r,tcf):
     plt.show()
 
 def main():
+    #starting MPI communication
     comm = MPI.COMM_WORLD
     myID = comm.rank
 
@@ -108,6 +114,7 @@ def main():
     num_helpers = comm.size -1
     
     if myID == master:
+        #master reads location of field and sends to helpers
         field_loc = input()
         for helperID in range(1, num_helpers + 1):
             comm.send(field_loc, dest = helperID, tag = helperID)
@@ -117,14 +124,18 @@ def main():
         
     field = np.loadtxt(field_loc, delimiter=',', dtype=complex)
     k_vectors = GridVectors(field)
-
+    
+    #correlation scales for which to compute the TCF
     r = np.linspace(0.5, 15, 400)
 
     triangle_corr = np.zeros(len(r))  
 
     for ind in tqdm(range(len(r)), desc= 'iterating through r'):
         
+        #determining vectors that satisfy norm(v) <= pi/r
         k_vectors.avail(np.pi/r[ind])
+
+        #each helper will compute sum for a fixed value of k
         num_tasks = len(k_vectors.vect_avail)
         num_active_helpers = min(num_helpers, num_tasks)
         
@@ -133,11 +144,12 @@ def main():
             corr_ind = 0
             num_sent = 0 
             
+            #sending out initial assignments
             for helperID in range(1, num_active_helpers + 1):
                 comm.send(helperID -1, dest = helperID, tag = helperID)
                 num_sent += 1
 
-
+            #iterating through the available vectors
             for i in tqdm(range(1, num_tasks+1), desc='computing sum'):
                 status = MPI.Status()
                 temp = comm.recv(source = MPI.ANY_SOURCE, tag = MPI.ANY_TAG, status = status)
@@ -146,12 +158,15 @@ def main():
 
                 corr_ind += temp
                 if num_sent < num_tasks:
+                    #send new task to helper that has completed their task
                     comm.send(num_sent, dest = sender, tag = 1)
                     num_sent+=1
 
                 else:
+                    #tag = 0 is flag for helpers to terminate processes
                     comm.send(0, dest = sender, tag = 0)
 
+            #multiplying by prefactor, computation for this value of r is done
             triangle_corr[ind] = np.real(corr_ind*(r[ind]/k_vectors.L)**3)
         
         elif myID <= num_active_helpers:
@@ -163,16 +178,16 @@ def main():
                 if tag == 0:
                     complete = True
                 else:
+                    #assignment corresponds to k vector helper is 'fixing'
                     k_vectors.tcf(assignment, r[ind])
-                    # print(k_vectors.s)
                     comm.send(k_vectors.spec, dest = master, tag = assignment)
 
         comm.Barrier()
 
-        
     if myID == master:
         filename = field_loc + '.csv'        
         np.savetxt(filename, triangle_corr, delimiter = ',')
+
 if __name__ == "__main__":
     main()
     
