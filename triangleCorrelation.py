@@ -28,6 +28,7 @@ class GridVectors():
 
         #defining phase factor of field
         abs_field = np.abs(self.field)
+        
         self.epsilon_k = np.ones((self.n, self.n), dtype=complex)
 
         #we set pixels with absolute value < delta_k to have phase factor 0
@@ -36,7 +37,7 @@ class GridVectors():
 
         one_ind = np.where(self.epsilon_k) 
         self.epsilon_k[one_ind] *= self.field[one_ind]/abs_field[one_ind]
-
+        
     def avail(self, num):
         '''determines set of { vect | norm(vect) <= num} for a given num'''
         if max(self.norms) <= num:#ie all vectors are available
@@ -122,11 +123,11 @@ def main():
     elif myID <= num_helpers:
         field_loc = comm.recv(source = master, tag = MPI.ANY_TAG)
         
-    field = np.loadtxt(field_loc, delimiter=',', dtype=complex)
+    field = 100*np.pi*np.loadtxt(field_loc, delimiter=',', dtype=complex)
     k_vectors = GridVectors(field)
     
     #correlation scales for which to compute the TCF
-    r = np.linspace(0.5, 15, 400)
+    r = np.linspace(0.5, 15, 10)
 
     triangle_corr = np.zeros(len(r))  
 
@@ -185,7 +186,7 @@ def main():
         comm.Barrier()
 
     if myID == master:
-        filename = field_loc + '.csv'        
+        filename = field_loc + '.txt'        
         np.savetxt(filename, triangle_corr, delimiter = ',')
 
 if __name__ == "__main__":
