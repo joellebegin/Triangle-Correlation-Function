@@ -120,7 +120,7 @@ def main():
         for helperID in range(1, num_helpers + 1):
             comm.send(field_loc, dest = helperID, tag = helperID)
 
-    elif myID <= num_helpers:
+    elif myID <= num_helpers: #BROADCAST!!!
         field_loc = comm.recv(source = master, tag = MPI.ANY_TAG)
         
     field = 100*np.pi*np.loadtxt(field_loc, delimiter=',', dtype=complex)
