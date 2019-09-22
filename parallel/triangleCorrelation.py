@@ -123,7 +123,7 @@ def main():
     elif myID <= num_helpers: #BROADCAST!!!
         field_loc = comm.recv(source = master, tag = MPI.ANY_TAG)
         
-    field = 100*np.pi*np.loadtxt(field_loc, delimiter=',', dtype=complex)
+    field = np.loadtxt(field_loc, delimiter=',', dtype=complex)
     k_vectors = GridVectors(field)
     
     #correlation scales for which to compute the TCF
